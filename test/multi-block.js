@@ -1,114 +1,135 @@
-var tape = require('tape');
-var levelup = require('levelup');
-var memdown = require('memdown');
+const tape = require('tape')
+const levelup = require('level-test')()
 
-var blobs = function() {
-	return require('../')(levelup('mem', {db:memdown}));
-};
+const blobs = function() {
+	return require('../')(levelup('test-level-blobs'))
+}
 
-var allocer = function() {
-	var i = 0;
+const allocer = function() {
+	let i = 0
+
 	return function() {
-		var buf = new Buffer(50000);
-		buf.fill(i++);
-		return buf;
-	};
-};
+		const buf = new Buffer(50000)
+
+		buf.fill(i++)
+
+		return buf
+	}
+}
 
 tape('write + read', function(t) {
-	var bl = blobs();
+	const bl = blobs()
 
-	var output = [];
-	var alloc = allocer();
-	var ws = bl.createWriteStream('test');
+	const output = []
+	const alloc = allocer()
+	const ws = bl.createWriteStream('test')
 
 	ws.on('finish', function() {
-		var rs = bl.createReadStream('test');
-		var input = [];
+		const rs = bl.createReadStream('test')
+
+		const input = []
 
 		rs.on('data', function(data) {
-			input.push(data);
-		});
-		rs.on('end', function() {
-			t.same(Buffer.concat(input), Buffer.concat(output));
-			t.end();
-		});
-	});
+			input.push(data)
+		})
 
-	for (var i = 0; i < 25; i++) {
-		var b = alloc();
-		output.push(b);
-		ws.write(b);
+		rs.on('end', function() {
+			t.same(Buffer.concat(input), Buffer.concat(output))
+			t.end()
+		})
+	})
+
+	for (let i = 0; i < 25; i++) {
+		const b = alloc()
+
+		output.push(b)
+
+		ws.write(b)
 	}
-	ws.end();
-});
+
+	ws.end()
+})
 
 tape('random access', function(t) {
-	var bl = blobs();
+	const bl = blobs()
 
-	var output = [];
-	var alloc = allocer();
-	var ws = bl.createWriteStream('test');
+	const output = []
+	const alloc = allocer()
+	const ws = bl.createWriteStream('test')
 
 	ws.on('finish', function() {
-		var rs = bl.createReadStream('test', {start:77777});
-		var input = [];
+		const rs = bl.createReadStream('test', { start: 77777 })
+
+		const input = []
 
 		rs.on('data', function(data) {
-			input.push(data);
-		});
-		rs.on('end', function() {
-			t.same(Buffer.concat(input).length, Buffer.concat(output).slice(77777).length);
-			t.same(Buffer.concat(input), Buffer.concat(output).slice(77777));
-			t.end();
-		});
-	});
+			input.push(data)
+		})
 
-	for (var i = 0; i < 3; i++) {
-		var b = alloc();
-		output.push(b);
-		ws.write(b);
+		rs.on('end', function() {
+			t.same(Buffer.concat(input).length, Buffer.concat(output).slice(77777).length)
+			t.same(Buffer.concat(input), Buffer.concat(output).slice(77777))
+
+			t.end()
+		})
+	})
+
+	for (let i = 0; i < 3; i++) {
+		const b = alloc()
+
+		output.push(b)
+
+		ws.write(b)
 	}
-	ws.end();
-});
+
+	ws.end()
+})
 
 tape('append', function(t) {
-	var bl = blobs();
+	const bl = blobs()
 
-	var output = [];
-	var alloc = allocer();
-	var ws = bl.createWriteStream('test');
+	const output = []
+	const alloc = allocer()
+	const ws = bl.createWriteStream('test')
 
 	ws.on('finish', function() {
-		ws = bl.createWriteStream('test', {append:true});
+		ws = bl.createWriteStream('test', { append: true })
 
 		ws.on('finish', function() {
-			var rs = bl.createReadStream('test');
-			var input = [];
+			const rs = bl.createReadStream('test')
+
+			const input = []
 
 			rs.on('data', function(data) {
-				input.push(data);
-			});
-			rs.on('end', function() {
-				t.same(Buffer.concat(input).length, Buffer.concat(output).length);
-				t.same(Buffer.concat(input).toString('hex'), Buffer.concat(output).toString('hex'));
-				t.end();
-			});
-		});
+				input.push(data)
+			})
 
-		for (var i = 0; i < 3; i++) {
-			var b = alloc();
-			output.push(b);
-			ws.write(b);
+			rs.on('end', function() {
+				t.same(Buffer.concat(input).length, Buffer.concat(output).length)
+				t.same(Buffer.concat(input).toString('hex'), Buffer.concat(output).toString('hex'))
+
+				t.end()
+			})
+		})
+
+		for (let i = 0; i < 3; i++) {
+			const b = alloc()
+
+			output.push(b)
+
+			ws.write(b)
 		}
 
-		ws.end();
-	});
+		ws.end()
+	})
 
-	for (var i = 0; i < 3; i++) {
-		var b = alloc();
-		output.push(b);
-		ws.write(b);
+	for (let i = 0; i < 3; i++) {
+		const b = alloc()
+
+		output.push(b)
+
+		ws.write(b)
 	}
-	ws.end();
-});
+
+	ws.end()
+})
