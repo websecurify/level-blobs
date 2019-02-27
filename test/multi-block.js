@@ -85,6 +85,8 @@ tape('random access', function(t) {
 	ws.end()
 })
 
+// TODO: failing
+
 tape('append', function(t) {
 	const bl = blobs()
 
@@ -93,7 +95,7 @@ tape('append', function(t) {
 	const ws = bl.createWriteStream('test')
 
 	ws.on('finish', function() {
-		ws = bl.createWriteStream('test', { append: true })
+		const ws = bl.createWriteStream('test', { append: true })
 
 		ws.on('finish', function() {
 			const rs = bl.createReadStream('test')

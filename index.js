@@ -1,52 +1,62 @@
-var Writable = require('readable-stream/writable');
-var Readable = require('readable-stream/readable');
-var peek = require('level-peek');
-var util = require('util');
-var once = require('once');
+const util = require('util')
+const once = require('once')
+const peek = require('ws-level-peek')
+const Writable = require('readable-stream/writable')
+const Readable = require('readable-stream/readable')
 
-var EMPTY = new Buffer(0);
-var ENCODER = {
+const EMPTY = Buffer.alloc(0)
+
+const xFF = '\xff'
+const xFFxFF = '\xff\xff'
+
+const ENCODER = {
 	encode: function(data) {
-		return typeof data === 'string' ? data = new Buffer(data) : data;
+		return typeof data === 'string' ? data = Buffer.from(data) : data
 	},
+
 	decode: function(data) {
-		return Buffer.isBuffer(data) ? data : new Buffer(data);
+		return Buffer.isBuffer(data) ? data : Buffer.from(data)
 	},
+
 	buffer: true,
 	type: 'raw'
-};
+}
 
-var noop = function() {};
+const noop = function() {}
 
-var pad = function(n) {
-	n = n.toString(16);
-	return '00000000'.slice(0, -n.length)+n;
-};
+const pad = function(n) {
+	n = n.toString(16)
 
-var expand = function(buf, len) {
-	var tmp = new Buffer(len);
-	buf.copy(tmp);
-	return tmp;
-};
+	return '00000000'.slice(0, -n.length) + n
+}
+
+const expand = function(buf, len) {
+	const tmp = Buffer.alloc(len)
+
+	buf.copy(tmp)
+
+	return tmp
+}
 
 module.exports = function(db, opts) {
-	if (!opts) opts = {};
+	if (!opts) opts = {}
 
-	var blobs = {};
+	const blobs = {}
 
-	var blockSize = opts.blockSize || 65536;
-	var maxBatch = opts.batch || 100;
-	var blank = new Buffer(blockSize);
+	const blockSize = opts.blockSize || 65536
+	const maxBatch = opts.batch || 100
+	const blank = Buffer.alloc(blockSize)
 
-	db.put('\x00', 'ignore', noop); // memdown#12 workaround
+	// db.put('\x00', 'ignore', noop); // memdown#12 workaround
 
-	var reservations = {};
-	var mutateBlock = function(key, offset, block, append, cb) {
-		var release = function() {
+	const reservations = {}
+
+	const mutateBlock = function(key, offset, block, append, cb) {
+		const release = function() {
 			if (!--reservations[key].locks) delete reservations[key];
 		};
 
-		var onreservation = function(r) {
+		const onreservation = function(r) {
 			r.locks++;
 
 			if (!r.block && !offset) {
@@ -55,25 +65,25 @@ module.exports = function(db, opts) {
 				return;
 			}
 
-			if (!r.block) r.block = new Buffer(blockSize);
+			if (!r.block) r.block = Buffer.alloc(blockSize);
 			if (r.block.length < offset + block.length) r.block = expand(r.block, offset + block.length);
 
 			block.copy(r.block, offset);
 
-			if (!append && offset + block.length < r.block.length) r.block = r.block.slice(0, offset+block.length);
+			if (!append && offset + block.length < r.block.length) r.block = r.block.slice(0, offset + block.length);
 			cb(null, r.block, release);
 		};
 
 		if (reservations[key]) return onreservation(reservations[key]);
 
-		db.get(key, {valueEncoding:ENCODER}, function(err, block) {
+		db.get(key, { valueEncoding: ENCODER }, function(err, block) {
 			if (err && !err.notFound) return cb(err);
-			if (!reservations[key]) reservations[key] = {locks:0, block:block};
+			if (!reservations[key]) reservations[key] = { locks: 0, block: block };
 			onreservation(reservations[key]);
 		});
 	};
 
-	var WriteStream = function(name, opts) {
+	const WriteStream = function(name, opts) {
 		if (!(this instanceof WriteStream)) return new WriteStream(name, opts);
 		if (!opts) opts = {};
 
@@ -102,8 +112,9 @@ module.exports = function(db, opts) {
 	WriteStream.prototype._flush = function(cb) {
 		if (!this.batch.length) return cb();
 
-		var key = this.batch[this.batch.length-1].key;
-		var batch = this.batch;
+		const key = this.batch[this.batch.length - 1].key;
+		const batch = this.batch;
+
 		this.batch = [];
 
 		if (!this.truncate) return db.batch(batch, cb);
@@ -114,16 +125,17 @@ module.exports = function(db, opts) {
 	WriteStream.prototype._truncate = function(batch, key, cb) {
 		cb = once(cb);
 
-		var dels = [];
-		var keys = db.createKeyStream({
+		const dels = [];
+
+		const keys = db.createKeyStream({
 			start: key,
-			end: this.name+'\xff\xff'
+			end: this.name + xFFxFF
 		});
 
 		keys.on('error', cb);
 
 		keys.on('data', function(key) {
-			dels.push({type:'del', key:key});
+			dels.push({ type: 'del', key: key });
 		});
 
 		keys.on('end', function() {
@@ -133,19 +145,19 @@ module.exports = function(db, opts) {
 	};
 
 	WriteStream.prototype._writeBlock = function(cb) {
-		var block = this.blocks.length === 1 ? this.blocks[0] : Buffer.concat(this.blocks, this.blockLength - this.blockOffset);
-		var index = this.blockIndex;
-		var offset = this.blockOffset;
-		var self = this;
+		const block = this.blocks.length === 1 ? this.blocks[0] : Buffer.concat(this.blocks, this.blockLength - this.blockOffset);
+		const index = this.blockIndex;
+		const offset = this.blockOffset;
+		const self = this;
 
 		this.blockOffset = 0;
 		this.blockLength = 0;
 		this.blockIndex++;
 		this.blocks = [];
 
-		var key = this.name+'\xff'+pad(index);
+		const key = this.name + xFF + pad(index);
 
-		var append = function(block, force, cb) {
+		const append = function(block, force, cb) {
 			if (block.length) {
 				self.batch.push({
 					type: 'put',
@@ -173,8 +185,10 @@ module.exports = function(db, opts) {
 	};
 
 	WriteStream.prototype._initAppend = function(data, enc, cb) {
-		var self = this;
+		const self = this;
+
 		this._shouldInitAppend = false;
+
 		blobs.size(this.name, function(err, size) {
 			if (err) return cb(err);
 			self._init(size);
@@ -186,7 +200,7 @@ module.exports = function(db, opts) {
 		if (!data.length || this._destroyed) return cb();
 		if (this._shouldInitAppend) return this._initAppend(data, enc, cb);
 
-		var self = this;
+		const self = this;
 		var overflow;
 		var free = blockSize - this.blockLength;
 
@@ -243,7 +257,7 @@ module.exports = function(db, opts) {
 		var start = opts.start || 0;
 		var blockIndex = (start / blockSize) | 0;
 		var blockOffset = start - blockIndex * blockSize;
-		var key = name+'\xff'+pad(blockIndex);
+		var key = name + xFF + pad(blockIndex);
 
 		this.name = name;
 		this._missing = (typeof opts.end === 'number' ? opts.end : Infinity) - start + 1;
@@ -252,12 +266,12 @@ module.exports = function(db, opts) {
 
 		this._reader = db.createReadStream({
 			start: key,
-			end: name+'\xff\xff',
+			end: name + xFFxFF,
 			valueEncoding: ENCODER
 		});
 
 		var onblock = function(val) {
-			key = name+'\xff'+pad(++blockIndex);
+			key = name + xFF + pad(++blockIndex);
 
 			if (!self._missing) return false;
 
@@ -319,14 +333,14 @@ module.exports = function(db, opts) {
 
 		var batch = [];
 		var keys = db.createKeyStream({
-			start: name+'\xff',
-			end: name+'\xff\xff'
+			start: name + xFF,
+			end: name + xFFxFF
 		});
 
 		keys.on('error', cb);
 
 		keys.on('data', function(key) {
-			batch.push({type:'del', key:key});
+			batch.push({ type: 'del', key: key });
 		});
 
 		keys.on('end', function() {
@@ -336,15 +350,16 @@ module.exports = function(db, opts) {
 
 	blobs.size = function(name, cb) {
 		peek.last(db, {
-			start: name+'\xff',
-			end: name+'\xff\xff',
-			valueEncoding:ENCODER
+			start: name + xFF,
+			end: name + xFFxFF,
+			valueEncoding: ENCODER
 		}, function(err, latest, val) {
 			if (err && err.message === 'range not found') return cb(null, 0);
 			if (err) return cb(err);
-			if (latest.slice(0, name.length+1) !== name+'\xff') return cb(null, 0);
 
-			cb(null, parseInt(latest.toString().slice(name.length+1), 16) * blockSize + val.length);
+			if (latest.slice(0, name.length + 1) !== name + xFF) return cb(null, 0);
+
+			cb(null, parseInt(latest.toString().slice(name.length + 1), 16) * blockSize + val.length);
 		});
 	};
 
@@ -381,12 +396,12 @@ module.exports = function(db, opts) {
 	};
 
 	blobs.createReadStream = function(name, opts) {
-		return new ReadStream(name, opts);
-	};
+		return new ReadStream(name, opts)
+	}
 
 	blobs.createWriteStream = function(name, opts) {
-		return new WriteStream(name, opts);
-	};
+		return new WriteStream(name, opts)
+	}
 
-	return blobs;
-};
+	return blobs
+}

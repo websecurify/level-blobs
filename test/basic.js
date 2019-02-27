@@ -62,6 +62,8 @@ tape('random access', function(t) {
 	})
 })
 
+// TODO: failing
+
 tape('append', function(t) {
 	const bl = blobs()
 
@@ -98,6 +100,8 @@ tape('write read write read', function(t) {
 		})
 	})
 })
+
+// TODO: failing
 
 tape('write + size', function(t) {
 	const bl = blobs()
