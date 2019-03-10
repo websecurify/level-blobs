@@ -1,6 +1,6 @@
 {
   "name": "ws-level-blobs",
-  "version": "3.0.2",
+  "version": "3.1.0",
   "description": "Save binary blobs in level and stream then back",
   "repository": "git://github.com/websecurify/level-blobs.git",
   "keywords": [
